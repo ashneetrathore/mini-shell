@@ -15,13 +15,11 @@ Written in the **C** language, Mini Shell processes user commands as jobs, execu
 
 Mini Shell represents each inputted command as a `job_info` struct, containing one more `proc_info` structs for the processes in that job. Active background jobs are tracked using a **linked list data structure**, containing `bgentry_t` structs. The command history, limited to the last five commands, is also tracked using a linked list data structure.
 
-The shell follows a **parent-child model**, with the shell as the parent process and external commands executed as child processes created via `fork()`. The parent manages its children, waiting on foreground jobs until they complete and reaping background jobs when they terminate. 
+Mini Shell follows a **parent-child model**, with the shell as the parent process and external commands executed as child processes created via `fork()`. The parent manages its children, waiting on foreground jobs until they complete and reaping background jobs when they terminate. 
 
 The program supports a number of [built-in commands](#running_man-running-commands), including `bglist` to view running background jobs and `!` to re-execute the most recent command from history. **Built-in commands** are handled directly by the shell, whereas all other commands, known as external commands, run in child processes.
 
-The shell supports **pipelines**, which allow the standard output of one command to be used as the standard input of another. This enables multiple processes to be chained together in a singular job without the creation of intermediate files.
-
-The shell also supports **input/output redirection** for files. Each `job_info` struct contains `in_file` and `out_file` fields, which specify the files for standard input and standard output respectively. When a command with a redirection operator is executed, the shell sets up these streams so the process reads from or writes to the specified files instead of the terminal.
+The shell supports **pipelines**, allowing the standard output of one command to be used as the standard input of another. This enables multiple processes to be chained together in a singular job without the creation of intermediate files. **Input/output redirection** for files is also supported. Each `job_info` struct contains `in_file` and `out_file` fields, which specify the files for standard input and standard output respectively. When a command with a redirection operator is executed, the shell sets up these streams so the process reads from or writes to the specified files instead of the terminal.
 
 **Signal handling** is used to track child process termination (SIGCHLD) and to display active background jobs (SIGUSR2), ensuring proper process management. The shell also manages its own termination, upon the `exit` command, by freeing memory and terminating any remaining background processes.
 

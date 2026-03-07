@@ -18,6 +18,37 @@ void handler2(int sig) {
 	write(STDERR_FILENO, "\n", strlen("\n"));
 }
 
+void handle_exec_error(proc_info* proc, job_info* job, char* line) {
+	printf(EXEC_ERR, proc->cmd);
+	// Cleaning up to make Valgrind happy 
+	free_job(job);
+	free(line);
+	// Calling validate_input with NULL will free the memory it has allocated
+	validate_input(NULL);
+	exit(EXIT_FAILURE);
+}
+
+void insert_bgentry(list_t* bglist, job_info* job, pid_t pid, volatile int* num_bg) {
+	// Malloc and initialize the bgentry_t struct
+	bgentry_t* bgentry = malloc(sizeof(bgentry_t));
+	bgentry->job = job;
+	bgentry->pid = pid;
+	bgentry->seconds = time(NULL);
+	InsertAtTail(bglist, (void*) bgentry);
+	(*num_bg)++;
+}
+
+void safe_wait(pid_t pid, int* exit_status, list_t* bglist, list_t* history) {
+	pid_t wait_result = waitpid(pid, exit_status, 0);
+	if (wait_result < 0) {
+		printf(WAIT_ERR);
+		DestroyBG(&bglist);
+		DestroyHistory(&history);
+		exit(EXIT_FAILURE);
+	}
+}
+
+
 int main(int argc, char* argv[]) {
     int max_bgprocs = -1;
 	int exec_result;
@@ -26,7 +57,6 @@ int main(int argc, char* argv[]) {
 	pid_t pid1;
 	pid_t pid2;
 	pid_t pid3;
-	pid_t wait_result;
 	char* line;
 	list_t* bglist = CreateList(NULL, NULL, &bgDeleter);
 	list_t* history = CreateList(NULL, NULL, &historyDeleter);
@@ -77,9 +107,9 @@ int main(int argc, char* argv[]) {
         #ifdef DEBUG   // If DEBUG flag removed in makefile, this will not longer print
      		debug_print_job(job);
         #endif
-
+		// Built-in !
 		if (job->procs->cmd[0] == '!') { 
-			if (strlen(job->procs->cmd) == 1) { // Single ! case
+			if (strlen(job->procs->cmd) == 1) { // Only '!' case
 				free_job(job);
 				free(line);
 				if (history->head != NULL) {
@@ -135,7 +165,7 @@ int main(int argc, char* argv[]) {
 				continue; 
 			}
 		}
-
+		// Update history
 		if (!(strcmp(job->procs->cmd, "history") == 0)) { // If command not history, add to history list
 			if (history->length == 5) { // If history already has 5 commands, remove oldest
 				removeTail(history); // Decrements length
@@ -144,7 +174,7 @@ int main(int argc, char* argv[]) {
 			strcpy(line_cmd, job->line);
 			InsertAtHead(history, line_cmd); // Add line to history list & increments length
 		}
-		// Example built-in: exit
+		// Built-in: exit
 		if (strcmp(job->procs->cmd, "exit") == 0) {
 			node_t* current = bglist->head; // Start at beginning of list
 			while (current != NULL) { // Iterate until end of list is reached
@@ -157,12 +187,12 @@ int main(int argc, char* argv[]) {
 			// Terminating the shell
 			free(line);
 			free_job(job);
-            validate_input(NULL);   // Calling validate_input with NULL will free the memory it has allocated
+            validate_input(NULL);
 			DestroyBG(&bglist);
 			DestroyHistory(&history);
             return 0;
 		}
-
+		// Built-in: cd
 		else if (strcmp(job->procs->cmd, "cd") == 0) {
 			int pass;
 			if (job->procs->argc == 1) {
@@ -185,7 +215,7 @@ int main(int argc, char* argv[]) {
 			free(line);
 			continue;
 		}
-
+		// Built-in: estatus
 		else if (strcmp(job->procs->cmd, "estatus") == 0) {
 			if (exit_status == -100) {
 				fprintf(stdout, "-100\n");
@@ -197,7 +227,7 @@ int main(int argc, char* argv[]) {
 			free(line);
 			continue;
 		}
-
+		// Built-in: bglist
 		else if (strcmp(job->procs->cmd, "bglist") == 0) {
 			node_t* current = bglist->head; // Start at beginning of list
 			while (current != NULL) { // Iterate until end of list is reached
@@ -209,7 +239,7 @@ int main(int argc, char* argv[]) {
 			free(line);
 			continue;
 		}
-
+		// Built-in: history
 		else if (strcmp(job->procs->cmd, "history") == 0) {
 			node_t* current = history->head; // Start at beginning of list
 			int counter = 1;
@@ -266,37 +296,18 @@ int main(int argc, char* argv[]) {
 				}
 				exec_result = execvp(proc->cmd, proc->argv);
 				if (exec_result < 0) {  // Error checking
-					printf(EXEC_ERR, proc->cmd);
-
-					// Cleaning up to make Valgrind happy 
-					// (not necessary because child will exit. Resources will be reaped by parent)
-					free_job(job);  
-					free(line);
-					validate_input(NULL);  // Calling validate_input with NULL will free the memory it has allocated
-
-					exit(EXIT_FAILURE);
+					handle_exec_error(proc, job, line);
 				}
 			}
 			else {
 				if (job->bg == 1) {
-					// Malloc and initialize the bgentry_t struct
-					bgentry_t* bgentry = malloc(sizeof(bgentry_t));
-					bgentry->job = job;
-					bgentry->pid = pid;
-					bgentry->seconds = time(NULL);
-					InsertAtTail(bglist, (void*) bgentry);
-					num_bg++;
+					insert_bgentry(bglist, job, pid, &num_bg);
 				}
 				else {
 					// As the parent, wait for the foreground job to finish
-					wait_result = waitpid(pid, &exit_status, 0);
-					if (wait_result < 0) {
-						printf(WAIT_ERR);
-						DestroyBG(&bglist);
-						DestroyHistory(&history);
-						exit(EXIT_FAILURE);
-					}
-					free_job(job);  // If a foreground job, we no longer need the data
+					safe_wait(pid, &exit_status, bglist, history);
+					// If a foreground job, we no longer need the data
+					free_job(job);
 				}
 				free(line);
 			}
@@ -317,15 +328,7 @@ int main(int argc, char* argv[]) {
 				close(p[1]);
 				exec_result = execvp(proc1->cmd, proc1->argv);
 				if (exec_result < 0) {  // Error checking
-					printf(EXEC_ERR, proc1->cmd);
-
-					// Cleaning up to make Valgrind happy 
-					// (not necessary because child will exit. Resources will be reaped by parent)
-					free_job(job);
-					free(line);
-					validate_input(NULL);  // Calling validate_input with NULL will free the memory it has allocated
-
-					exit(EXIT_FAILURE);
+					handle_exec_error(proc1, job, line);
 				}
 				
 			}
@@ -339,45 +342,20 @@ int main(int argc, char* argv[]) {
 				close(p[0]);
 				exec_result = execvp(proc2->cmd, proc2->argv);
 				if (exec_result < 0) {  // Error checking
-					printf(EXEC_ERR, proc2->cmd);
-
-					// Cleaning up to make Valgrind happy 
-					// (not necessary because child will exit. Resources will be reaped by parent)
-					free_job(job);  
-					free(line);
-					validate_input(NULL);  // Calling validate_input with NULL will free the memory it has allocated
-
-					exit(EXIT_FAILURE);
+					handle_exec_error(proc2, job, line);
 				}
 			}
 			if (job->bg == 1) {
-				// Malloc and initialize the bgentry_t struct
-				bgentry_t* bgentry = malloc(sizeof(bgentry_t));
-				bgentry->job = job;
-				bgentry->pid = pid2;
-				bgentry->seconds = time(NULL);
-				InsertAtTail(bglist, (void*) bgentry);
-				num_bg++;
+				insert_bgentry(bglist, job, pid2, &num_bg);
 			}
 			else {
 				// As the parent, wait for the foreground job to finish
 				close(p[0]);
 				close(p[1]);
-				wait_result = waitpid(pid1, &exit_status, 0);
-				if (wait_result < 0) {
-					printf(WAIT_ERR);
-					DestroyBG(&bglist);
-					DestroyHistory(&history);
-					exit(EXIT_FAILURE);
-				}
-				wait_result = waitpid(pid2, &exit_status, 0);	
-				if (wait_result < 0) {
-					printf(WAIT_ERR);
-					DestroyBG(&bglist);
-					DestroyHistory(&history);
-					exit(EXIT_FAILURE);
-				}
-				free_job(job);  // If a foreground job, we no longer need the data
+				safe_wait(pid1, &exit_status, bglist, history);
+				safe_wait(pid2, &exit_status, bglist, history);
+				// If a foreground job, we no longer need the data
+				free_job(job);
 			}
 			free(line);
 		}
@@ -404,15 +382,7 @@ int main(int argc, char* argv[]) {
 				close(p2[1]);
 				exec_result = execvp(proc1->cmd, proc1->argv);
 				if (exec_result < 0) {  // Error checking
-					printf(EXEC_ERR, proc1->cmd);
-
-					// Cleaning up to make Valgrind happy 
-					// (not necessary because child will exit. Resources will be reaped by parent)
-					free_job(job);  
-					free(line);
-					validate_input(NULL);  // Calling validate_input with NULL will free the memory it has allocated
-
-					exit(EXIT_FAILURE);
+					handle_exec_error(proc1, job, line);
 				}
 			}
 			if ((pid2 = fork()) < 0) { // Fork second time
@@ -430,15 +400,7 @@ int main(int argc, char* argv[]) {
 
 				exec_result = execvp(proc2->cmd, proc2->argv);
 				if (exec_result < 0) {  // Error checking
-					printf(EXEC_ERR, proc2->cmd);
-
-					// Cleaning up to make Valgrind happy 
-					// (not necessary because child will exit. Resources will be reaped by parent)
-					free_job(job);  
-					free(line);
-					validate_input(NULL);  // Calling validate_input with NULL will free the memory it has allocated
-
-					exit(EXIT_FAILURE);
+					handle_exec_error(proc2, job, line);
 				}
 			}
 			if ((pid3 = fork()) < 0) { // Fork once
@@ -455,25 +417,11 @@ int main(int argc, char* argv[]) {
 
 				exec_result = execvp(proc3->cmd, proc3->argv);
 				if (exec_result < 0) {  // Error checking
-					printf(EXEC_ERR, proc3->cmd);
-
-					// Cleaning up to make Valgrind happy 
-					// (not necessary because child will exit. Resources will be reaped by parent)
-					free_job(job);  
-					free(line);
-					validate_input(NULL);  // Calling validate_input with NULL will free the memory it has allocated
-
-					exit(EXIT_FAILURE);
+					handle_exec_error(proc3, job, line);
 				}
 			}
 			if (job->bg == 1) {
-				// Malloc and initialize the bgentry_t struct
-				bgentry_t* bgentry = malloc(sizeof(bgentry_t));
-				bgentry->job = job;
-				bgentry->pid = pid3;
-				bgentry->seconds = time(NULL);
-				InsertAtTail(bglist, (void*) bgentry);
-				num_bg++;
+				insert_bgentry(bglist, job, pid3, &num_bg);
 			}
 			else {
 				// As the parent, wait for the foreground job to finish
@@ -481,28 +429,11 @@ int main(int argc, char* argv[]) {
 				close(p1[1]);
 				close(p2[0]);
 				close(p2[1]);
-				wait_result = waitpid(pid1, &exit_status, 0);
-				if (wait_result < 0) {
-					printf(WAIT_ERR);
-					DestroyBG(&bglist);
-					DestroyHistory(&history);
-					exit(EXIT_FAILURE);
-				}
-				wait_result = waitpid(pid2, &exit_status, 0);	
-				if (wait_result < 0) {
-					printf(WAIT_ERR);
-					DestroyBG(&bglist);
-					DestroyHistory(&history);
-					exit(EXIT_FAILURE);
-				}
-				wait_result = waitpid(pid3, &exit_status, 0);	
-				if (wait_result < 0) {
-					printf(WAIT_ERR);
-					DestroyBG(&bglist);
-					DestroyHistory(&history);
-					exit(EXIT_FAILURE);
-				}
-				free_job(job);  // If a foreground job, we no longer need the data
+				safe_wait(pid1, &exit_status, bglist, history);
+				safe_wait(pid2, &exit_status, bglist, history);
+				safe_wait(pid3, &exit_status, bglist, history);
+				// If a foreground job, we no longer need the data
+				free_job(job);
 			}
 			free(line);
 		}

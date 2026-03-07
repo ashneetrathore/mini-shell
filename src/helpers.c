@@ -24,7 +24,8 @@ void DestroyHistory(list_t** list) {
         free(current);
         current = temp;
     }
-    free(*list); // makes pointer to list_t memory available
+    // Makes pointer to list_t memory available
+    free(*list);
 }
 
 void DestroyBG(list_t** list) {
@@ -38,7 +39,8 @@ void DestroyBG(list_t** list) {
         free(current);
         current = temp;
     }
-    free(*list); // makes pointer to list_t memory available
+    // Makes pointer to list_t memory available
+    free(*list);
 }
 
 int redirection_invalid_error(char* x1, char* x2, char* x3) {
@@ -54,7 +56,8 @@ int redirection_invalid_error(char* x1, char* x2, char* x3) {
 void bgRemoveTerminated(list_t* list, pid_t wpid) {
     if (list != NULL) {
         node_t* head = NULL;
-        node_t* current = list->head; // start at the beginning of the list
+        // Start at the beginning of the list
+        node_t* current = list->head;
         node_t* previous = NULL;
         node_t* temp;
         while (current != NULL) {
@@ -73,13 +76,16 @@ void bgRemoveTerminated(list_t* list, pid_t wpid) {
             }
             else {
                 if (previous == NULL) {
-                    head = current; // sets head of list
+                    // Sets head of list
+                    head = current;
                 }
                 previous = current;
-                current = current->next; // continue iteration
+                // Continue iteration
+                current = current->next;
             }
         }
-        list->head = head; // update list head
+        // Update list head
+        list->head = head;
     }
 }
 

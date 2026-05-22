@@ -25,7 +25,7 @@ The shell supports **pipelines**, allowing the standard output of one command to
 
 ## :open_file_folder: PROJECT FILE STRUCTURE
 ```bash
-MiniShell/
+mini-shell/
 │── src/
 │   │── icssh.c        # Defines the main shell program
 │   │── helpers.c      # Provides helper functions for the shell
@@ -47,7 +47,7 @@ MiniShell/
 
 **1. Clone the repository**
 ```bash
-git clone https://github.com/ashneetrathore/MiniShell.git
+git clone https://github.com/ashneetrathore/mini-shell.git
 ```
 
 **2. Run the program**

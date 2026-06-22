@@ -2,43 +2,38 @@
 
 ## :open_book: OVERVIEW
 Date: Feb 2024\
-Developer(s): Ashneet Rathore\
-Based on assignment instructions from Prof. Jennifer Wong-Ma
+Developer(s): Ashneet Rathore
 
-Mini Shell is a custom Unix-like shell program that accepts and processes commands, supporting both foreground and background execution. Users can view their command history and a list of active background processes, run built-in commands including `cd` and `estatus`, and use simple pipelines and I/O redirection.
+Mini Shell is a custom Unix-like shell program that accepts and processes commands, supporting both foreground and background execution. Users can view their command history and a list of active background processes, run built-in commands, and use simple pipelines and I/O redirection.
 
 ## :film_strip: DEMO
 ![Demo](demo.gif)
 
 ## :gear: HOW IT WORKS
-Written in the **C** language, Mini Shell processes user commands as jobs, executing them in either the foreground or background. Jobs executed in the **foreground** run synchronously and block the shell until completion, and those executed in the **background** run asynchronously, allowing for continued user input. 
+Written in **C**, Mini Shell processes user commands as jobs executed in either the foreground or background. **Foreground jobs** run synchronously and block the shell until completion, while **background jobs** run asynchronously, allowing for continued user input. Active background jobs and command history, limited to the last five commands, are tracked using **linked list data structures**.
 
-Mini Shell represents each inputted command as a `job_info` struct, containing one more `proc_info` structs for the processes in that job. Active background jobs are tracked using a **linked list data structure**, containing `bgentry_t` structs. The command history, limited to the last five commands, is also tracked using a linked list data structure.
+Mini Shell follows a **parent-child model**, with the shell as the parent process and external commands executed as child processes. The parent manages its children, waiting on foreground jobs until they complete and reaping background jobs when they terminate. 
 
-Mini Shell follows a **parent-child model**, with the shell as the parent process and external commands executed as child processes created via `fork()`. The parent manages its children, waiting on foreground jobs until they complete and reaping background jobs when they terminate. 
+**Built-in commands** are handled directly by the shell, while external commands run in child processes. **Pipelines** allow the output of one process to be used as the input of another, chaining multiple processes together without intermediate files. **I/O redirection** allows processes to read from or write to files instead of the terminal.
 
-The program supports a number of [built-in commands](#running_man-running-commands), including `bglist` to view running background jobs and `!` to re-execute the most recent command from history. **Built-in commands** are handled directly by the shell, whereas all other commands, known as external commands, run in child processes.
-
-The shell supports **pipelines**, allowing the standard output of one command to be used as the standard input of another. This enables multiple processes to be chained together in a singular job without the creation of intermediate files. **Input/output redirection** for files is also supported. Each `job_info` struct contains `in_file` and `out_file` fields, which specify the files for standard input and standard output respectively. When a command with a redirection operator is executed, the shell sets up these streams so the process reads from or writes to the specified files instead of the terminal.
-
-**Signal handling** is used to track child process termination (SIGCHLD) and to display active background jobs (SIGUSR2), ensuring proper process management. The shell also manages its own termination, upon the `exit` command, by freeing memory and terminating any remaining background processes.
+**Signal handling** tracks child process termination and triggers the display of active background jobs, ensuring proper process management. On exit, the shell frees memory and terminates any remaining background processes.
 
 ## :open_file_folder: PROJECT FILE STRUCTURE
 ```bash
 mini-shell/
 │── src/
-│   │── icssh.c        # Defines the main shell program
-│   │── helpers.c      # Provides helper functions for the shell
-│   └── linkedlist.c   # Defines linked list (used to track cmd history and background processes)
+│   │── icssh.c        # Main shell program
+│   │── helpers.c      # Shell helper functions
+│   └── linkedlist.c   # Linked list for cmd history and background processes
 │── rsrc/
-│   └── icssh.supp     # Suppresses Valgrind warnings during memory checks (for testing purposes)
+│   └── icssh.supp     # Valgrind warning suppressions for memory checks
 │── lib/
-│   └── icsshlib.o     # Provides pre-compiled helper functions
-│── include/           # Contains header files (*.h) for source files (*.c)
-│── Makefile           # Builds and cleans shell executable
+│   └── icsshlib.o     # Pre-compiled helper functions
+│── include/           # Header files for source files
+│── Makefile           # Builds and clean config
 │── README.md          # Project documentation
-│── .gitignore         # Excludes files and folders from version control
-└── demo.gif           # GIF showing the shell demo
+│── .gitignore         # Ignored files
+└── demo.gif           # Demo GIF
 ```
 
 ## :rocket: SET UP & EXECUTION
@@ -59,16 +54,16 @@ make
 
 ## :wrench: TRY IT OUT
 ### :running_man: RUNNING COMMANDS
-Run a command normally to execute it in the foreground. The example below runs a `sleep` process for 10 seconds in the foreground.
+Run a command normally to execute it in the foreground
 ```bash
 sleep 10
 ```
-Run a command, with `&` appended to the end of it, to execute it in the background. The example below runs a `sleep` process for 10 seconds in the background.
+Append `&` to run a command in the background
 ```bash
 sleep 10 &
 ```
 
-Here are all the available built-in commands supported by Mini Shell:
+Built-in commands supported by Mini Shell:
 | Command     | Description                                                             |
 |-------------|-------------------------------------------------------------------------|
 | `estatus`   | Displays the exit status of the last command executed in the foreground |
@@ -83,13 +78,13 @@ Here are all the available built-in commands supported by Mini Shell:
 > Commands not listed above may also be entered. These are treated as external commands and are executed in child processes, not directly by the shell.
 
 ### :link: PIPELINES
-To use pipelines, separate multiple commands with the `|` operator. Mini Shell supports up to 2 pipes, allowing 3 processes to be chained together. The example below lists the files in the `src` directory with the `ls` command, filters only those ending in `.c` using the `grep` command, and counts the number of matching files with the `wc -l` command.
+Separate commands with the `|` operator to chain them - up to 2 pipes (3 processes) are supported. The example below lists files in `src/`, filters those ending in `.c`, and counts the matches.
 ```bash
 ls src | grep '\.c$' | wc -l
 ```
 
 ### :keyboard: I/O REDIRECTION
-To redirect input or output, use the `<` operator to read from a file and the `>` to write to a file. The example below reads from `README.md`, searches for the string `shell`, and writes the matching lines to `result.txt`.
+Use `<` to read from a file and `>` to write to a file. The example below reads from `README.md`, searches for the string `shell`, and writes the matching lines to `result.txt`.
 ```bash
 grep "shell" < README.md > result.txt
 ```

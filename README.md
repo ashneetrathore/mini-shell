@@ -36,7 +36,7 @@ mini-shell/
 └── demo.gif           # Demo GIF
 ```
 
-## :rocket: SET UP & EXECUTION
+## :rocket: EXECUTION
 > [!IMPORTANT]
 > Mini Shell must be run in a Linux environment, as it relies on POSIX system calls.
 
@@ -78,13 +78,13 @@ Built-in commands supported by Mini Shell:
 > Commands not listed above may also be entered. These are treated as external commands and are executed in child processes, not directly by the shell.
 
 ### :link: PIPELINES
-Separate commands with the `|` operator to chain them - up to 2 pipes (3 processes) are supported. The example below lists files in `src/`, filters those ending in `.c`, and counts the matches.
+Separate commands with the `|` operator to chain them - up to 2 pipes (3 processes) are supported. The example below lists files in `src/`, filters those ending in `.c`, and counts the matches:
 ```bash
 ls src | grep '\.c$' | wc -l
 ```
 
 ### :keyboard: I/O REDIRECTION
-Use `<` to read from a file and `>` to write to a file. The example below reads from `README.md`, searches for the string `shell`, and writes the matching lines to `result.txt`.
+Use `<` to read from a file and `>` to write to a file. The example below reads from `README.md`, searches for the string `shell`, and writes the matching lines to `result.txt`:
 ```bash
 grep "shell" < README.md > result.txt
 ```
